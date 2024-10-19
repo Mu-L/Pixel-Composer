@@ -52,7 +52,7 @@ function groupNodes(nodeArray, _group = noone, record = true, check_connect = tr
 		_content[i] = _ctx_nodes[i];
 	}
 	
-	if(check_connect) { #region IO creation
+	if(check_connect) { // IO creation
 		var _io = { inputs: {}, outputs: {}, map: {} };
 		
 		for(var i = 0; i < array_length(nodeArray); i++)
@@ -112,8 +112,7 @@ function groupNodes(nodeArray, _group = noone, record = true, check_connect = tr
 				_to.setFrom(_n.outParent);
 			}
 		}
-		
-	} #endregion
+	}
 	
 	UNDO_HOLDING = false;	
 	if(record) recordAction(ACTION_TYPE.group, _group, { content: _content });
@@ -220,9 +219,16 @@ function Node_Collection(_x, _y, _group = noone) : Node(_x, _y, _group) construc
 	
 	onNewInputFromGraph = noone;
 	
+	/////========== Attributes ===========
+	
+	attribute_surface_depth();
+	attribute_interpolation();
+	attribute_oversample();
+	
 	tool_node = noone;
 	draw_input_overlay = true;
 	
+	array_push(attributeEditors, "Group IO");
 	array_push(attributeEditors, ["Lock Input",          function() /*=>*/ {return attributes.lock_input}, new checkBox(function() /*=>*/ { attributes.lock_input = !attributes.lock_input   }) ]);
 	array_push(attributeEditors, ["Edit Input Display",  function() /*=>*/ {return 0}, button(function() /*=>*/ { dialogCall(o_dialog_group_input_order).setNode(self, CONNECT_TYPE.input);  }) ]);
 	array_push(attributeEditors, ["Edit Output Display", function() /*=>*/ {return 0}, button(function() /*=>*/ { dialogCall(o_dialog_group_input_order).setNode(self, CONNECT_TYPE.output); }) ]);
@@ -279,6 +285,7 @@ function Node_Collection(_x, _y, _group = noone) : Node(_x, _y, _group) construc
 		
 		recordAction(ACTION_TYPE.group_added, self, _node);
 		_node.group = self;
+		_node.checkGroup();
 		
 		will_refresh = true;
 		node_length  = array_length(nodes);
@@ -305,7 +312,8 @@ function Node_Collection(_x, _y, _group = noone) : Node(_x, _y, _group) construc
 			
 		if(_hide) _node.disable();
 		else      _node.group = group;
-			
+		_node.checkGroup();
+		
 		will_refresh = true;
 		node_length  = array_length(nodes);
 		onRemove(_node);

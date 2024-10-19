@@ -583,6 +583,7 @@ function Node(_x, _y, _group = noone) : __Node_Base(_x, _y) constructor {
 		
 		if(is_3D == NODE_3D.polygon) USE_DEPTH = true;
 		if(is_simulation) PROJECT.animator.is_simulating = true;
+		
 	}
 	
 	static doStepBegin = function() {}
@@ -2385,6 +2386,12 @@ function Node(_x, _y, _group = noone) : __Node_Base(_x, _y) constructor {
 	
 	static attributeDeserialize = function(attr) {
 		struct_append(attributes, attr); 
+		
+		if(LOADING_VERSION < 1_18_02_0) {
+			if(struct_has(attr, "color_depth")) attributes.color_depth += (!array_empty(inputs) && inputs[0].type == VALUE_TYPE.surface)? 1 : 2;
+			if(struct_has(attr, "interpolate")) attributes.interpolate++;
+			if(struct_has(attr, "oversample"))  attributes.oversample++;
+		}
 	}
 	
 	static processDeserialize = function() {}
@@ -2656,21 +2663,64 @@ function Node(_x, _y, _group = noone) : __Node_Base(_x, _y) constructor {
 	
 	static resetAnimation = function() {}
 	
-	static attrDepth = function() {
-		if(struct_has(attributes, "color_depth")) {
-			var form = attributes.color_depth;
-			if(inputs[0].type == VALUE_TYPE.surface) 
-				form--;
-			if(form >= 0)
-				return array_safe_get_fast(global.SURFACE_FORMAT, form, surface_rgba8unorm);
+	static getAttribute = function(_key) {
+		var _val = struct_try_get(attributes, _key, 0);
+		
+		switch(_key) {
+			case "interpolate" :
+			case "oversample" :
+				if(group && _val == 0) return group.getAttribute(_key);
+				_val--;
+				break;
 		}
 		
-		var _s = getInputData(0);
-		while(is_array(_s) && array_length(_s)) _s = _s[0];
-		if(!is_surface(_s)) 
-			return surface_rgba8unorm;
-		return surface_get_format(_s);
+		return _val;
 	}
+	
+	static attrDepth = function() {
+		var form = -1;
+		
+		if(struct_has(attributes, "color_depth")) {
+			form = global.SURFACE_FORMAT[attributes.color_depth];
+			if(form >= 0) return form;
+		}
+		
+		if(form == -1) { // input
+			var _s = getInputData(0);
+			while(is_array(_s) && array_length(_s)) _s = _s[0];
+			if(is_surface(_s)) return surface_get_format(_s);
+		}
+		
+		if(form == -2 && group != noone) // group
+			return group.attrDepth();
+		
+		return surface_rgba8unorm;
+	}
+	
+	static checkGroup = function() {
+		
+		for( var i = 0, n = array_length(attributeEditors); i < n; i++ ) {
+			var _att = attributeEditors[i];
+			if(!is_array(_att)) continue;
+			
+			var _wid = _att[2];
+			if(!is(_wid, scrollBox)) continue;
+			
+			var _key = array_safe_get(_att, 3, "");
+			var _l   = _wid.data_list;
+			
+			for( var j = 0, m = array_length(_l); j < m; j++ ) {
+				var _scl = _l[j];
+				if(!is(_scl, scrollItem)) continue;
+				if(_scl.name != "Group")  continue;
+				
+				_scl.active = group != noone;
+				if(!_scl.active && attributes[$ _key] == j) attributes[$ _key] = _att[0] == "Color depth"? 3 : 1;
+				break;
+			}
+		}
+		
+	} run_in(1, function() /*=>*/ { checkGroup(); });
 	
 	static toString = function() { return $"Node [{internalName}]: {node_id}"; }
 }
